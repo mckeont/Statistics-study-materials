@@ -1,0 +1,333 @@
+---
+title: "Introduction to Matrices"
+author: "Donna L. Coffman"
+date: "1/23/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction to Matrix Algebra
+
+A matrix is defined as an ordered array of numbers, of dimensions $p,q$.
+
+```{r}
+(Y <- matrix(1:12, 3, 4)) # 3 x 4 matrix, filled column-wise
+
+X <- matrix(c(1, -2,  3,
+              4, -5, -6,
+              7,  8,  9,
+              0,  0, 10),
+            4, 3, byrow=TRUE)
+X
+```
+
+The individual numbers in a matrix are its elements. We use the following notation to indicate that $\mathbf{A}$ is a matrix with elements $a_{ij}$ in the $i,j$th position
+
+$\mathbf{A} = \{a_{ij}\}$
+
+When we refer to element $a_{ij}$, the first subscript will refer
+to the row position of the elements in the array.
+
+The second subscript (regardless of which letter is used in
+this position) will refer to the column position.
+
+To extract an element, refer to it's subscripts in square brackets. For example,
+
+```{r}
+X[2,3]
+```
+
+To get an entire row of a matrix, specify the row and
+leave out the column
+
+```{r}
+X[1,]
+```
+
+To get an entire column of a matrix, specify the column
+and leave out the row
+
+```{r}
+X[,3]
+```
+
+To extract several rows and/or columns
+
+```{r}
+X[1:3,1:2]
+```
+
+You can combine several matrices with the same number of
+columns by joining them as rows, using the `rbind()`
+command
+
+```{r}
+A <- matrix(c (1 ,3 ,3 ,9 ,6 ,5) ,2 ,3)
+B <- matrix(c (9 ,8 ,8 ,2 ,9 ,0) ,2 ,3)
+A
+B
+rbind(A,B)
+rbind(B,A)
+```
+
+In similar fashion, you can combine several matrices with
+the same number of rows by joining them as columnss,
+using the `cbind()` command
+
+```{r}
+cbind(A,B)
+cbind(B,A)
+```
+
+
+## Types of matrices
+
+If $p \neq q$ then $\mathbf{A}$ is a *rectangular* matrix.
+
+```{r}
+X
+```
+
+If $p = q$ then $\mathbf{A}$ is a *square* matrix.
+
+```{r}
+B <- matrix(c(-5, 1,  3,
+               2, 2,  6,
+               7, 3, -4),
+            3, 3, byrow=TRUE)
+B
+```
+
+For any square matrix $\mathbf{A}$, $\mathbf{A}$ is a *diagonal* matrix if $a_{ij}=0$ for $i \neq j$.
+
+```{r}
+diag(c(6, -2, 0, 7))  # make a diagonal matrix
+```
+
+For any diagonal matrix $\mathbf{A}$, if all diagonal elements are equal, $\mathbf{A}$
+is a scalar matrix.
+
+For any scalar matrix $\mathbf{A}$, if all diagonal elements are 1, $\mathbf{A}$ is an
+*identity* matrix.
+
+```{r}
+diag(3)  # make an identity matrix
+```
+
+
+$\mathbf{A}$ is a *null* matrix if all elements of $\mathbf{A}$ are zero
+
+```{r}
+matrix(0, 4, 3)  # make a zero matrix
+```
+
+A row vector is a matrix with only one row.
+It is common to identify row vectors in matrix notation
+with lower-case boldface and a "prime" symbol, like this: $\mathbf{a'}$.
+
+```{r}
+y <- c(-5, 3, 1, 4) #row vector 
+y
+```
+
+A column vector is a matrix with only one column.
+It is common to identify column vectors in matrix notation
+with lower-case boldface, but without the "prime" symbol.
+
+```{r}
+(z <- matrix(y, 4, 1)) # one-column matrix ("column vector")
+```
+
+Often we may want to create a unit vector.
+
+```{r}
+rep(1, 4)  # make a unit vector
+```
+
+
+## Matrix Operations
+
+Two matrix operations, addition and subtraction, are essentially the same as their familiar scalar equivalents. But multiplication and division are rather different!
+
+### Addition and Subtraction
+
+For two matrices $\mathbf{A}$ and $\mathbf{B}$ to be conformable for addition or subtraction, they must have the same numbers of rows and columns. To add two matrices, simply add the corresponding elements together.
+
+```{r}
+(A <- matrix(1:6, 2, 3, byrow=TRUE))
+B <- matrix(c(-5, 1,  2,
+               3, 0, -4),
+            2, 3, byrow=TRUE)
+B
+
+A + B  # matrix addition
+```
+
+Subtracting matrices works like addition. You simply subtract corresponding elements.
+
+```{r}
+A - B  # matrix subtraction
+```
+
+Matrix addition has some important mathematical properties, which, fortunately, mimic those of scalar addition and subtraction. For matrices $\mathbf{A}$, $\mathbf{B}$, and $\mathbf{C}$:
+
+Associativity: $\mathbf{A} + (\mathbf{B} + \mathbf{C}) = (\mathbf{A} + \mathbf{B}) + \mathbf{C}$
+
+Commutativity: $\mathbf{A} + \mathbf{B} = \mathbf{B} + \mathbf{A}$
+
+### Multiplication of a matrix by a scalar
+
+When we multiply a matrix by a scalar, we are computing a scalar multiple, not to be confused with a scalar product, which we will learn about subsequently. To compute a scalar multiple, simply multiply every element of the matrix by the scalar.
+
+```{r}
+3 * B # product of scalar and matrix
+B * 3
+```
+
+For matrices $\mathbf{A}$ and $\mathbf{B}$, and scalars $a$ and $b$, scalar multiplication has the following mathematical properties:
+
+$(a+b)\mathbf{A} = a \mathbf{A} + b \mathbf{A}$
+
+$a(\mathbf{A} + \mathbf{B}) = a \mathbf{A} + a \mathbf{B}$
+
+$a(b\mathbf{A}) = (ab) \mathbf{A}$
+
+$a \mathbf{A} = \mathbf{A} a$
+
+
+### Matrix transpose
+
+Transposing a matrix switches the rows and columns of a matrix.
+
+Let $\mathbf{A} = \{a_{ij}\}$. Then the transpose of $\mathbf{A}$, denoted $\mathbf{A'}$ is defined as $\mathbf{A'} = \{a_{ji}\}$
+
+```{r}
+X
+t(X)  # matrix transpose
+```
+
+Key properties of matrix transpose:
+
+$\mathbf{(A')'} = \mathbf{A}$
+
+$(c \mathbf{A})' = c \mathbf{A}'$
+
+$(\mathbf{A} + \mathbf{B})' = \mathbf{A'} + \mathbf{B'}$
+
+$(\mathbf{AB})' = \mathbf{B'A'}$
+
+A square matrix $\mathbf{A}$ is symmetric if and only if $\mathbf{A} = \mathbf{A'}$
+(i.e., if $a_{ji}=a_{ij} \forall i,j$)
+
+```{r}
+B <- matrix(c(-5, 1,  3,
+               2, 2,  6,
+               7, 3, -4),
+            3, 3, byrow=TRUE)
+B
+all(B == t(B))  # check exact symmetry: be careful!
+
+all.equal(B, t(B)) # generally better
+
+C <- matrix(c(-5, 1,  3,
+               1, 2,  6,
+               3, 6, -4),
+            3, 3, byrow=TRUE)
+all.equal(C, t(C))
+```
+
+
+### Matrix multiplication
+
+Matrix multiplication is an operation with properties quite different from its scalar counterpart. Order matters in matrix multiplication.
+
+That is, the matrix product $\mathbf{AB}$ need not be the same as the matrix product $\mathbf{BA}$.
+
+The matrix product $\mathbf{AB}$ might be well-defined, while the product $\mathbf{BA}$ might not exist.
+
+When we compute the product $\mathbf{AB}$, we say that $\mathbf{A}$ is post-multiplied by $\mathbf{B}$, or that $\mathbf{B}$ is premultiplied by $\mathbf{A}$.
+
+If two or more matrices are conformable, there is a rule for determining the dimension of their product. The product of a $p \times q$ matrix $\mathbf{A}$ and a $q \times r$ matrix $\mathbf{B}$ will be of dimension $p \times r$.
+
+More generally, the product of any number of conformable matrices will have the number of rows in the leftmost matrix, and the number of columns in the rightmost matrix.
+
+Matrix multiplication uses the `%*%` command
+
+```{r}
+A <- matrix(c (1 ,3 ,3 ,9) ,2 ,2)
+B <- matrix(c (9 ,8 ,8 ,2) ,2 ,2)
+A
+B
+A%*%B
+B%*%A
+```
+
+The following are some key properties of matrix multiplication:
+
+Associativity: $(\mathbf{AB})\mathbf{C} = \mathbf{A}(\mathbf{BC})$
+
+Distributive over addition and subtraction: $\mathbf{C(A+B)} = \mathbf{CA} + \mathbf{CB}$
+
+Assuming it is conformable, the identity matrix $\mathbf{I}$ functions
+like the number 1, that is $\mathbf{AI} = \mathbf{A}$ and $\mathbf{IA} = \mathbf{A}$
+
+BUT, not generally commutative. That is, often $\mathbf{AB} \neq \mathbf{BA}$
+
+And $\mathbf{AB} = \mathbf{0}$ does not necessarily imply that either $\mathbf{A=0}$ or $\mathbf{B=0}$.
+
+
+Given a row vector $\mathbf{x'}$ and a column vector $\mathbf{y}$ having $q$ elements each, the inner (or scalar) product $\mathbf{x'y}$ is a scalar equal to the sum of cross-products of the elements of $\mathbf{x'}$ and $\mathbf{y}$.
+
+```{r}
+x <- c(2, 0, 1, 3)
+y <- c(-1, 6, 0, 9)
+x %*% y  # inner product (note 1 x 1 matrix result)
+```
+
+
+### Matrix Inverse
+
+A $p \times p$ matrix has an inverse if and only if it is square and of full rank, i.e., no column of $\mathbf{A}$ is a linear combination of the others.
+
+If a square matrix $\mathbf{A}$ has an inverse, it is the unique square matrix $\mathbf{A^{-1}}$ such that $\mathbf{A^{-1}}\mathbf{A} = \mathbf{A}\mathbf{A^{-1}} = \mathbf{I}$
+
+Mathematical properties of matrix inverses:
+
+$\mathbf{(A')^{-1}} = \mathbf{(A^{-1})'}$
+
+If $\mathbf{A}=\mathbf{A'}$ then $\mathbf{A^{-1} = (A^{-1})'}$
+
+The inverse of the product of several invertible square matrices is the product of their inverses in reverse order. For example, $\mathbf{(ABC)^{-1}} = \mathbf{C^{-1}B^{-1}A^{-1}}$
+
+For nonzero scalar $c$, $(c \mathbf{A})^{-1} = (1/c) \mathbf{A^{-1}}$
+
+For a diagonal matrix $\mathbf{D}$, $\mathbf{D^{-1}}$ is a diagonal matrix with diagonal elements equal to the reciprocal of the corresponding diagonal elements of $\mathbf{D}$.
+
+To invert a square matrix, use the `solve()` command
+
+```{r}
+(A <- matrix(c(2, 5,  1, 3), 2, 2, byrow=TRUE))
+solve(A)  # matrix inverse
+
+A %*% solve(A)  # check
+solve(A) %*% A
+```
+
+
+### Trace of a matrix
+
+The trace of a square matrix $\mathbf{A}$, $Tr(\mathbf{A})$, is the sum of its
+diagonal elements.
+
+The trace is often employed in matrix algebra to compute the sum of squares of all the elements of a matrix because
+
+$Tr(\mathbf{AA'}) = \sum_i \sum_j A^2_{i,j}$
+
+```{r}
+B
+diag(B)  # matrix diagonal
+sum(diag(B))  # trace
+```

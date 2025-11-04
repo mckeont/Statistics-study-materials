@@ -1,0 +1,317 @@
+---
+title: "Week 2: Introduction to Visualizing Multilevel Data and Matrices"
+author: "Donna L. Coffman"
+date: "1/23/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+load("data/helpdata.Rdata")
+load("data/longhelp.Rdata")
+```
+
+## Data Manipulation
+
+In general, data cleaning is a process of investigating your data for inaccuracies, or recoding it in a way that makes it more manageable.
+
+MOST IMPORTANT RULE - LOOK AT YOUR DATA!
+
+To plot longitudinal data, we will first need to do some data manipulation.
+
+### Wide to Long Data Format
+
+You can use the reshape function from Base R.
+
+```{r}
+longhelp <- reshape(helpdata, idvar="id", 
+                    varying=list(c("cesd1", "cesd2", "cesd3", "cesd4"),
+                                c("mcs1", "mcs2", "mcs3", "mcs4"), 
+                                c("i11","i12", "i13","i14"),
+                                c("g1b1", "g1b2", "g1b3", "g1b4")), 
+                    v.names=c("cesdtv", "mcstv", "i1tv", "g1btv"),
+                    timevar="time", times=1:4, direction="long")
+```
+
+Otherwise, the `tidyr` package has some useful functions, which we will talk about a little later.
+
+* `tidyr::gather` - puts column data into rows.
+* `tidyr::spread` - spreads rows into columns. 
+
+### Long to Wide Data Format
+
+```{r}
+widehelp <- reshape(longhelp, 
+              v.names = c("cesdtv", "mcstv", "i1tv", "g1btv"), 
+              idvar="id", timevar="time", direction="wide")
+
+widehelp[c(2,8), c("id", "cesd", "cesdtv.1", "cesdtv.2", "cesdtv.3",
+   "cesdtv.4")]
+```
+
+
+# Plotting Data
+
+We start by installing and loading the required packages. **`ggplot2`** is included in the **`tidyverse`** package so you can just install the **`tidyverse`** package and that will automatically install **`ggplot2`**
+
+```{r eval=FALSE}
+install.packages("tidyverse")
+install.packages("gridExtra")
+install.packages("RColorBrewer")
+install.packages("colorspace")
+```
+
+```{r load-package, message=FALSE, purl=FALSE}
+library(tidyverse)
+```
+
+There are three different plotting systems in R: base, lattice, and `ggplot2`. We will primarily focus on **`ggplot2`** with a couple of brief diversions into **base graphics**.
+
+RStudio [**`ggplot2`** cheat sheet](https://www.rstudio.com/wp-content/uploads/2016/11/ggplot2-cheatsheet-2.1.pdf)
+
+## Overview of `ggplot2`
+
+**`ggplot2`** is a plotting package that makes it simple to create complex plots
+from data in a data frame. It provides a more programmatic interface for
+specifying what variables to plot, how they are displayed, and general visual
+properties. Therefore, we only need minimal changes if the underlying data change or if we decide to change from a bar plot to a scatterplot. This helps in creating publication quality plots with minimal amounts of adjustments and tweaking.
+
+`ggplot2` requires **tidy data**: i.e., a column for every dimension, and a row for every observation. Well structured data will save you lots of time when making figures with `ggplot2`.
+
+`ggplot2` graphics are built step by step by adding new elements. Adding layers in
+this fashion allows for extensive flexibility and customization of plots.
+
+To build a plot, we need to:
+
+- use the `ggplot()` function and bind the plot to a specific data frame using the `data` argument
+
+```{r, eval=FALSE, purl=FALSE}
+ggplot(data = helpdata)
+```
+
+- define aesthetics (`aes`), by selecting the variables to be plotted and the variables to define the presentation such as plotting size, shape color, etc.
+
+```{r, eval=FALSE, purl=FALSE}
+ggplot(data = helpdata, aes(x = cesd, y = mcs))
+```
+
+- add `geoms` -- graphical representation of the data in the plot (points,
+      lines, bars). **`ggplot2`** offers many different `geoms`; we will use some       common ones, including:
+      * `geom_point()` for scatter plots, dot plots, etc.
+      * `geom_boxplot()` for, well, boxplots!
+      * `geom_line()` for trend lines, time-series, etc.  
+
+To add a `geom` to the plot use `+` operator.
+
+Longitudinal data can be visualized as a line graph with time on the x-axis. For these plots, we need the *longhelp* data that we created.
+
+```{r purl=FALSE}
+ggplot(data = longhelp, aes(x = time, y = cesdtv)) +
+     geom_line()
+```
+
+Unfortunately, this does not work because we plotted data for all individuals
+together. We need to tell `ggplot()` to draw a line for each individual by modifying
+the aesthetic function to include `group = id`:
+
+```{r purl=FALSE}
+ggplot(data = longhelp, aes(x = time, y = cesdtv, group = id)) +
+    geom_line()
+```
+
+There are a lot of individuals so one thing we could do is to randomly sample 20 individuals. Note that you need the `unique()` function, which gives you the unique values of a variable. We use this so that we do not sample the same `id` twice.
+
+```{r}
+# randomly sampling 20 individuals
+ids <- sample(unique(longhelp$id), 20)
+# creating dataframe of the 20 individuals
+samp <- longhelp[longhelp$id %in% ids, ]
+ggplot(data = samp, aes(x = time, y = cesdtv, group = id)) +
+    geom_line()
+```
+
+We will be able to distinguish individuals in the plot if we add colors:
+
+```{r purl=FALSE}
+ggplot(data = samp, aes(x = time, y = cesdtv, group = id, color = id)) +
+    geom_line()
+```
+
+What happens to the legend and color scheme if we treat `id` as a factor?
+
+```{r purl=FALSE}
+ggplot(data = samp, aes(x = time, y = cesdtv, group = id, color = as.factor(id))) +
+    geom_line()
+```
+
+Another option when there are so many individuals is try faceting if you do not want to select a random sample.
+
+## Faceting
+
+`ggplot` has a special technique called *faceting* that allows the user to split one plot into multiple plots based on a factor included in the dataset. We will use it to make a plot for each substance:
+
+```{r first-facet, purl=FALSE}
+ggplot(data = longhelp, aes(x = time, y = cesdtv, group = id)) +
+    geom_line() +
+    facet_wrap(~ substance)
+```
+
+We can now make the faceted plot by splitting further by sex using `color`:
+
+```{r purl=FALSE}
+ggplot(data = longhelp, aes(x = time, y = cesdtv, group = id, color = female)) +
+     geom_line() +
+     facet_wrap(~ substance)
+```
+
+Usually plots with white background look more readable when printed.  We can set
+the background to white using the function `theme_bw()`. Additionally, you can remove the grid:
+
+```{r purl=FALSE}
+ ggplot(data = longhelp, aes(x = time, y = cesdtv, group = id, color = female)) +
+     geom_line() +
+     facet_wrap(~ substance) +
+     theme_bw() +
+     theme(panel.grid = element_blank())
+```
+
+## **`ggplot2`** themes
+
+In addition to `theme_bw()`, which changes the plot background to white, **`ggplot2`** comes with several other themes which can be useful to quickly change the look of your visualization. The complete list of themes is available
+at <http://docs.ggplot2.org/current/ggtheme.html>. `theme_minimal()` and
+`theme_light()` are popular, and `theme_void()` can be useful as a starting
+point to create a new hand-crafted theme.
+
+The [ggthemes](https://cran.r-project.org/web/packages/ggthemes/vignettes/ggthemes.html) package provides a wide variety of options (including an STATA theme).
+The [**`ggplot2`** extensions website](https://www.ggplot2-exts.org) provides a list of packages that extend the capabilities of **`ggplot2`**, including additional themes.
+
+The `facet_wrap` geometry extracts plots into an arbitrary number of dimensions
+to allow them to cleanly fit on one page. `facet_wrap()` wraps around like words on a page whereas `facet_grid()` does not. The `facet_grid` geometry allows you to explicitly specify how you want your plots to be arranged via formula notation (`rows ~ columns`; a `.` can be used as a placeholder that indicates only one row or column).
+
+Let's modify the previous plot to compare how the CES-D of males and females
+has changed through time:
+
+```{r purl=FALSE}
+# One column, facet by rows
+ggplot(data = longhelp, aes(x = time, y = cesdtv, group = id, color = id)) +
+    geom_line() +
+    facet_grid(female ~ .)
+```
+
+```{r  purl=FALSE}
+# One row, facet by column
+ggplot(data = longhelp, aes(x = time, y = cesdtv, group = id, color = id)) +
+    geom_line() +
+    facet_grid(. ~ female)
+```
+
+
+```{r, echo=FALSE}
+
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+## Customization
+
+Now, let's change names of axes to something more informative than 'time'
+and 'cesdtv' and add a title to the figure:
+
+```{r purl=FALSE}
+ggplot(data = longhelp, aes(x = time, y = cesdtv, group = id, color = female)) +
+    geom_line() +
+    facet_wrap(~ substance) +
+    labs(title = "CESD by Gender and Substance across Months",
+         x = "Months",
+         y = "CESD") +
+    theme_bw()
+```
+
+The axes have more informative names, but their readability can be improved by
+increasing the font size:
+
+```{r purl=FALSE}
+ggplot(data = longhelp, aes(x = time, y = cesdtv, group = id, color = female)) +
+    geom_line() +
+    facet_wrap(~ substance) +
+    labs(title = "CESD by Gender and Substance across Months",
+        x = "Months",
+        y = "CESD") +
+    theme_bw() +
+    theme(text=element_text(size = 14))
+```
+
+Note that it is also possible to change the fonts of your plots. If you are on
+Windows, you may have to install the [**extrafont** package](https://github.com/wch/extrafont), and follow the instructions included in the README for this package.
+
+## Colors
+
+Try using different color palettes (see http://www.cookbook-r.com/Graphs/Colors_(ggplot2)/).
+
+There are two packages that contain various color palettes. The first is `RColorBrewer`.
+
+```{r message=FALSE}
+library(RColorBrewer)
+display.brewer.all()
+```
+
+The other package is `colorspace`. An example of some of the color palettes available in the ![colorspace package](qualitative_palette.png)
+
+Be careful with colors because some people are colorblind. In fact, there are colorblind palettes. Here are two; the first with grey and the second with black.
+
+```{r message=FALSE}
+cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+```
+
+And this is what they look like:  
+![cbPalette](cbPalette.png)
+
+![cbbPalette](cbbPalette.png)
+
+
+
+
+## Arranging and exporting plots
+
+Faceting is a great tool for splitting one plot into multiple plots, but sometimes you may want to produce a single figure that contains multiple plots using different variables or even different data frames. The **`gridExtra`** package allows us to combine separate ggplots into a single figure using `grid.arrange()`:
+
+```{r gridarrange-example, message=FALSE, purl=FALSE, fig.width=10}
+library(gridExtra)
+
+boxplot <- ggplot(data = helpdata, aes(x = racegrp, y = cesd)) +
+  geom_boxplot() +
+  xlab("Race") + ylab("CESD")
+
+plot <- ggplot(data = longhelp, aes(x=time, y=cesdtv, group=id, color=female)) +
+  geom_line() + 
+  xlab("Months") + ylab("CESD")
+
+grid.arrange(boxplot, plot, ncol = 2, widths = c(4, 6))
+```
+
+In addition to the `ncol` and `nrow` arguments, used to make simple arrangements, there are tools for [constucting more complex layouts](https://cran.r-project.org/web/packages/gridExtra/vignettes/arrangeGrob.html). 
+
+After creating your plot, you can save it to a file in your favorite format. The Export tab in the **Plot** pane in RStudio will save your plots at low resolution, which will not be accepted by many journals and will not scale well for posters. 
+
+Instead, use the `ggsave()` function, which allows you easily change the dimension and resolution of your plot by adjusting the appropriate arguments (`width`, `height` and `dpi`):
+
+```{r ggsave-example, eval=FALSE, purl=FALSE}
+my_plot <- ggplot(data =longhelp, aes(x=time, y=cesdtv, group=id, color=female)) +
+    geom_line() +
+    facet_wrap(~ substance) +
+    labs(title = "CESD by Gender and Substance across Months",
+        x = "Month",
+        y = "CESD") +
+    theme_bw()
+
+ggsave("my_plot.png", my_plot, width = 15, height = 10)
+
+## This also works for grid.arrange() plots
+combo_plot <- grid.arrange(boxplot, plot, ncol = 2, widths = c(4, 6))
+ggsave("combo_plot.png", combo_plot, width = 10, dpi = 300)
+```
+
+Note: The parameters `width` and `height` also determine the font size in the saved plot.
+
+
