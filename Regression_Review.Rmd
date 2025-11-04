@@ -1,0 +1,393 @@
+---
+title: "Regression Review"
+author: "T. McKeon"
+date: "2025-11-03"
+output: html_document
+---
+ 
+- **concept → example → code → interpretation**
+
+---
+
+## Setup
+```{r}
+# knitr options
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+
+
+
+# Libraries used in this review
+library(dplyr)
+library(car)       # Anova(), residual diagnostics
+library(emmeans)   # emmeans(), emmip() for interactions
+```
+## What does Knitr mean?
+ -- knitr::opts_chunk$set(...)
+This sets global options for all code chunks in your document — meaning these defaults apply to every chunk unless you override them in an individual chunk.
+
+ -- echo = TRUE
+Means the R code itself will be shown in the knitted output (e.g., in your HTML or PDF).
+
+If you set echo = FALSE, only the results (like plots or printed output) will appear — the reader won’t see the code that produced them.
+
+-- message = FALSE
+Suppresses messages that R functions often print (e.g., package startup messages or model-fitting notes).
+
+
+---warning = FALSE
+
+Suppresses warnings (yellow text that alerts you about possible issues but doesn’t stop the code from running).
+
+The code still runs, but the warning messages won’t appear in your output
+
+
+
+**Data note:** this document assumes a data.frame named `ph_fun` is available with variables:
+- `Phys_function` (0–100, higher = better physical function)
+- `BMI` (numeric)
+- `ageGroup` (factor with levels 30-45, 46-65, 66-80, 81-90)
+- `weightCat` (factor: 1=under, 2=normal, 3=over, 4=obese)
+
+If you need to load data from a CSV, uncomment and adapt:
+```{r, eval=FALSE}
+# library(readr)
+ph_fun <- readr::read_csv("ph_fun.csv")
+# ph_fun$ageGroup  <- factor(ph_fun$ageGroup, levels = c("30-45","46-65","66-80","81-90"))
+# ph_fun$weightCat <- factor(ph_fun$weightCat, levels = c("under","normal","over","obese"))
+```
+
+---
+
+## Step 1: Data Examination and Cleaning
+
+**Concept:** Validate variable types and spot errors before modeling.
+
+```{r}
+str(ph_fun)
+summary(ph_fun)
+```
+
+Before doing any statistical tests, we need to *understand our data structure*.
+- `str()` tells us what kind of data each variable is (numeric, factor, character).  
+- `summary()` gives quick descriptive stats (min, max, mean) or frequencies for categorical variables.  
+
+Check for:
+- Missing values (look for `NA` in the summary)
+- Outliers (values that seem extreme)
+- Coding errors (e.g., BMI of 999)
+
+# There often are multiple ways to get to the same answer
+In your code (breaking the fourth wall and talking to you, Maria directly), you had is.na, which tells you missing values. What you use, is a matter of style and what works best for you. 
+
+**Why it matters:**  
+Regression assumes your predictors are correctly coded. A numeric variable mistakenly stored as text or with a rogue code (like “.” or “missing”) can break your model.
+
+**Visual checks:**
+
+```{r}
+hist(ph_fun$BMI, main = "BMI distribution", xlab = "BMI")
+boxplot(ph_fun$Phys_function, main = "Physical function (boxplot)", ylab = "Score (0-100)")
+qqnorm(ph_fun$Phys_function, main = "Q-Q plot: Phys_function"); qqline(ph_fun$Phys_function)
+```
+
+- **Histograms** show overall shape (normal vs skewed).  
+- **Boxplots** show outliers.  
+- **Q-Q plots** check for normality (points near the line = approximately normal).
+
+---
+
+## Step 2: Descriptive Statistics (aligns with Q1)
+
+**Concept:** Summarize predictors (`BMI`, `ageGroup`, `weightCat`).
+
+```{r}
+ph_fun %>%
+  group_by(ageGroup) %>%
+  summarize(
+    mean_BMI = mean(BMI, na.rm = TRUE),
+    sd_BMI   = sd(BMI, na.rm = TRUE),
+    n        = n(),
+    .groups  = "drop"
+  )
+```
+
+What This Code Does: Groups the dataset by ageGroup
+
+Within each age group, it calculates: the mean BMI,
+
+the standard deviation (SD) of BMI,
+
+and the sample size (n) for that group.
+
+```{r}
+# Categorical summaries
+table(ph_fun$ageGroup)
+prop.table(table(ph_fun$ageGroup))
+
+table(ph_fun$weightCat)
+prop.table(table(ph_fun$weightCat))
+```
+
+Describe **continuous variables** using the *mean ± SD* if data are roughly symmetric. For skewed data, we might report the *median and interquartile range (IQR)*.  
+
+**Categorical variables** are described with counts and percentages.  
+
+**Why this step matters:**  
+This gives context for model. It helps to report about your regression coefficient knowing the variable’s basic range or variation. Descriptives also confirm there are enough observations in each category (Sample size is important for Power and Effect size).
+---
+What your model may look like:
+Y=b0+b1X+b2X + ....ε
+
+Y = b0 (86.0012)+ _ b1(1) + b2Normal(2.22242) +B3(X3)....
+
+
+𝑌= BMI (dependent variable)
+b0 = Intercept
+b1 = coefficients (estimates)
+ε -= residals (just need to add this symbol when writing your model. Accounts for difference in predicted vs observed data)
+
+## Step 3: Bivariate Associations
+
+**Concept:** Examine simple relationships between each predictor and the outcome (`Phys_function`).
+
+```{r}
+# Continuous predictor vs continuous outcome
+fit_bmi <- lm(Phys_function ~ BMI, data = ph_fun)
+summary(fit_bmi)
+
+# Categorical predictor vs continuous outcome
+fit_age <- aov(Phys_function ~ ageGroup, data = ph_fun)
+summary(fit_age)
+
+```
+
+- Each of these is a **simple regression**, showing how *one* predictor relates to the outcome.
+- Look at the **R²** value in the `lm()` output — this tells us the proportion of variation in physical function explained by BMI alone.  
+- The **p-value** tells us whether the relationship is statistically significant.
+
+This step sets up our decision about which predictors belong in a multivariable model. It’s like asking: “Does BMI *by itself* seem related to function? Does ageGroup seem related?”
+
+---
+## Step 4: Linear Regression Models (Model 1)
+
+**Concept:** Move from bivariate → multivariable (control for BMI and ageGroup simultaneously).
+
+```{r}
+lm1 <- lm(Phys_function ~ BMI + ageGroup, data = ph_fun)
+summary(lm1)
+plot(lm1, which = 1)  # residuals vs fitted
+# Optional: use the car package residual plot for a cleaner diagnostic
+car::residualPlot(lm1)
+
+```
+
+ 
+We’re now controlling for both BMI and ageGroup simultaneously.
+
+**Interpretation:**  
+- Each coefficient shows the *unique* contribution of that variable, holding others constant.  
+  - Example: “For every 1-unit increase in BMI, physical function changes by ___ units, controlling for ageGroup.”  
+- The intercept is the predicted value when BMI = 0 and the reference ageGroup is baseline.
+
+**Residual plot:**  
+- Points should scatter randomly around zero.  
+- A clear curve or funnel shape means a violation of *linearity* or *equal variance*.  
+
+**Assumptions:**  
+1. **Linearity** — predictor–outcome relationships are approximately straight-line.  
+2. **Normality** — residuals are approximately normal. You can check this by saving the residuals and plotting them in  a histogram.
+3. **Homoscedasticity** — residuals have constant variance.  
+4. **Independence** — observations are not correlated.
+
+---
+
+## Step 5: Quadratic Effect (Model 2)
+
+**Concept:** Allow for curvature — maybe BMI’s effect on function isn’t strictly linear.
+
+```{r}
+lm2 <- lm(Phys_function ~ poly(BMI, 2) + ageGroup, data = ph_fun)
+
+# Residual diagnostics for Model 2
+plot(lm2, which = 1)    # Residuals vs Fitted (linearity + equal variance)
+plot(lm2, which = 2)    # Normal Q-Q (normality of residuals)
+
+# (Matches the assignment's hint)
+car::residualPlot(lm2)
+
+adj1 <- summary(lm1)$adj.r.squared
+adj2 <- summary(lm2)$adj.r.squared
+crit  <- rbind(AIC = AIC(lm1, lm2), BIC = BIC(lm1, lm2))
+list(Adjusted_R2_Model1 = adj1, Adjusted_R2_Model2 = adj2, AIC_BIC = crit)
+
+# If you’d like to display a compact table of model-fit statistics:
+library(broom)
+broom::glance(lm1) %>%
+  dplyr::select(adj.r.squared, AIC, BIC) %>%
+  dplyr::mutate(Model = "Model 1") %>%
+  dplyr::bind_rows(
+    broom::glance(lm2) %>%
+      dplyr::select(adj.r.squared, AIC, BIC) %>%
+      dplyr::mutate(Model = "Model 2")
+  )
+
+```
+Interpretation: Compare the two models.
+If Model 2 shows a slightly higher Adjusted R² and lower AIC/BIC than Model 1, it provides a better balance between explanatory ability and model simplicity.
+If the improvement is minimal, Model 1 may still be preferred for parsimony.
+
+- `poly(BMI, 2)` fits both BMI and BMI² terms. If the quadratic term is significant, the relationship *curves* (e.g., function declines more steeply at extreme BMI).
+
+**Adjusted R²:**  
+- Measures how well the model fits *after adjusting for the number of predictors.*  
+- Unlike plain R², it *penalizes* adding variables that don’t meaningfully improve prediction.  
+- **Higher Adjusted R² = better balance of fit and parsimony.**
+
+**AIC (Akaike Information Criterion)** and **BIC (Bayesian Information Criterion):**  
+- Both measure model quality while penalizing complexity.  
+- **Lower AIC/BIC = better model.**  
+- **AIC** penalizes complexity less (often favored for prediction).  
+- **BIC** penalizes more (often favored for simpler, explanatory models).  
+- If both AIC and BIC drop for Model 2, the quadratic term improved fit meaningfully.
+
+
+Linearity / equal variance: “Residuals vs Fitted showed a roughly random scatter around zero with no strong curvature or funneling, suggesting approximate linearity and homoscedasticity.”
+
+Normality: “The Q–Q plot showed points close to the reference line, indicating residuals are approximately normal.”
+
+Influence (optional): “No unusually influential points were apparent on the default diagnostics (Cook’s distance).”
+
+---
+
+## Step 6: Interaction Model (Model 3)
+
+**Concept:** Test whether the relationship between weight category and function *differs by age group.*
+
+```{r}
+lm3 <- lm(Phys_function ~ weightCat * ageGroup, data = ph_fun)
+
+# Overall tests (Type II sums of squares)
+car::Anova(lm3, type = 2)
+
+# Estimated marginal means by group and interaction plots
+emm <- emmeans(lm3, ~ weightCat | ageGroup)
+emm
+#“Give me the model-predicted average physical-function score for each weight category, within each age group.”
+
+emmip(lm3, weightCat ~ ageGroup, CIs = TRUE)
+#“Plot physical-function means (y-axis) for each weight category (lines), across age groups (x-axis).”
+```
+
+
+- The `*` includes both *main effects* and their *interaction*.  
+  - **Main effects:** overall differences by weightCat and by ageGroup.  
+  - **Interaction:** whether the *effect* of weightCat depends on ageGroup.  
+
+**Interpreting interaction visually:**  
+- If `emmip()` lines are *parallel*, there’s no interaction (effects are consistent across groups).  
+- If they *cross or diverge*, there’s an interaction (the effect changes with age).  
+
+**Statistical test:**  
+- `Anova(lm3, type=2)` provides an overall (multi-df) test of whether the interaction terms jointly matter.
+
+**Follow-ups:**  
+```{r}
+emmeans(lm3, pairwise ~ weightCat | ageGroup)  # pairwise comparisons within each age group
+```
+
+---
+
+## Step 7: Reporting Results
+
+**Concept:** Present findings as a mini-report: clear, structured, and interpretable.
+
+**Outline to follow:**  
+1. **Background:** What question are we answering? (e.g., “How do BMI and age relate to physical function among breast cancer survivors?”)  
+2. **Methods:** Variables and models tested (Model 1–3).  
+3. **Results:** Key tables/plots and interpretations.  
+4. **Conclusion:** Which model fits best and what it suggests clinically or practically.  
+
+**Example phrasing to adapt:**  
+- “Model 1 suggested that higher BMI and older age groups were associated with lower physical function (Adj R² = …).  
+  Adding a quadratic term (Model 2) improved fit (Adj R² = …; ΔAIC = …; ΔBIC = …).  
+  In Model 3, a significant interaction indicated that the impact of weight category differed by age group (p < …).”
+
+**Best practices:**  
+- Report **coefficients and confidence intervals**, not just p-values.  
+- Keep figures clear/labeled (axes, titles).  
+- End with one clear takeaway sentence per model.
+
+---
+
+## Practice
+
+Pick one model (e.g., Model 1 or Model 3) and interpret output line by line.  
+Example:
+> “For every 1-unit increase in BMI, physical function changes by ___ units, controlling for ageGroup.”
+
+---
+
+## Effect Sizes 
+
+### A. Cohen’s *d* (two-group mean difference)
+- Interprets the **magnitude** of a difference between two group means in SD units.  
+- Rough guide: 0.2 = small, 0.5 = medium, 0.8 = large.
+
+```{r}
+# install.packages("effectsize") # if needed
+library(effectsize)
+
+# Example two-group comparison:
+# Create a two-level subset: NORMAL vs OBESE (drop other levels)
+ph_two <- ph_fun %>%
+  dplyr::filter(weightCat %in% c("normal", "obese")) %>%
+  droplevels()
+
+# Cohen's d for Phys_function between NORMAL and OBESE
+cohens_d(Phys_function ~ weightCat, data = ph_two)
+```
+
+ “Cohen’s d expresses the mean difference in units of pooled SD, so a d=0.6 means the groups differ by about 0.6 standard deviations.”
+
+---
+
+### B. Eta-squared (η²) / Partial Eta-squared (ηp²) for ANOVA
+- Proportion of **variance explained** by a factor.  
+- Benchmarks: 0.01 (small), 0.06 (medium), 0.14 (large).
+
+```{r}
+# One-way ANOVA
+fit_age <- aov(Phys_function ~ ageGroup, data = ph_fun)
+
+# Effect size for ANOVA
+eta_squared(fit_age, partial = TRUE)  # partial = TRUE gives ηp²
+```
+
+ηp² = 0.10 would mean 10% of the variance in physical function is associated with age group differences.
+
+---
+
+### C. Partial R² for Multiple Regression
+- **Unique** variance in the outcome explained by each predictor **controlling for** others.
+
+```{r}
+# From earlier: lm1 <- lm(Phys_function ~ BMI + ageGroup, data = ph_fun)
+
+# Per-term partial R^2 for lm1
+partial_r2(lm1)
+```
+
+ “Partial R² tells us each predictor’s unique contribution after accounting for the rest of the model.”
+
+---
+
+### D. Effect sizes for the interaction model
+- You can also summarize **η² / ηp²** for factors (main effects and interaction) in Model 3.
+
+```{r}
+# From earlier: lm3 <- lm(Phys_function ~ weightCat * ageGroup, data = ph_fun)
+
+# Eta-squared for each term in the model (main effects & interaction)
+eta_squared(lm3, partial = TRUE)
+```
+
